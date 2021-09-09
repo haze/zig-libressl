@@ -1,0 +1,1 @@
+V	310719014713Z		1000	unknown	/C=CA/ST=Edmonton/O=Bob Beck/OU=LibTLS Tutorial/CN=Intermediate CA Cert
