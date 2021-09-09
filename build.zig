@@ -14,6 +14,10 @@ fn buildLibreSsl(builder: *std.build.Builder, input_step: *std.build.LibExeObjSt
     var libre_ssl_absolute_dir_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const libre_ssl_absolute_dir = try libre_ssl_dir.realpath(".", &libre_ssl_absolute_dir_buf);
 
+    const autogen_step = std.build.RunStep.create(builder, "autogen LibreSSL");
+    autogen_step.cwd = library_location;
+    autogen_step.addArg("./autogen.sh");
+
     const configure_step = std.build.RunStep.create(builder, "configure LibreSSL");
     configure_step.cwd = library_location;
     configure_step.addArg("./configure");
@@ -30,9 +34,10 @@ fn buildLibreSsl(builder: *std.build.Builder, input_step: *std.build.LibExeObjSt
     const cmake_step = std.build.RunStep.create(builder, "configure LibreSSL");
     cmake_step.cwd = build_dir_path;
     cmake_step.addArgs(&[_][]const u8{ "cmake", "-GNinja", libre_ssl_absolute_dir });
+    cmake_step.step.dependOn(&configure_step.step);
 
     if (!try isLibreSslConfigured(library_location)) {
-        cmake_step.step.dependOn(&configure_step.step);
+        configure_step.step.dependOn(&autogen_step.step);
     }
 
     const make_step = std.build.RunStep.create(builder, "make LibreSSL");
