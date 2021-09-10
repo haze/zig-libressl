@@ -14,7 +14,6 @@ work, along with use in a homebrewed HTTP client, but there is still much more t
 free to open issues for features or bugs that you wish to add or encounter.
 
 ## Quickstart Client
-
 ```zig
 const std = @import("std");
 
@@ -39,6 +38,39 @@ pub fn main() !void {
         if (std.mem.eql(u8, line, "</html>")) break;
     }
 }
+```
+
+## Quickstart Server
+```zig
+const std = @import("std");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    var tls_configuration = try (TlsConfigurationParams{
+        .ca = .{ .memory = @embedFile("../test/CA/root.pem") },
+        .cert = .{ .memory = @embedFile("../test/CA/server.crt") },
+        .key = .{ .memory = @embedFile("../test/CA/server.key") },
+    }).build();
+
+    var stream_server = std.net.StreamServer.init(.{});
+    try stream_server.listen(std.net.Address.parseIp("127.0.0.1", 0) catch unreachable);
+    std.debug.print("Listening on :{}", .{stream_server.listen_address.getPort()});
+
+    var ssl_server = try SslServer.wrap(tls_configuration, stream_server);
+    defer ssl_server.deinit();
+
+    var visitor_count: u64 = 0;
+    while (visitor_count < 100) : (visitor_count += 1) {
+        var ssl_connection = try ssl_server.accept();
+        defer ssl_connection.deinit();
+
+        var writer = ssl_connection.writer();
+        try writer.print("You are visitor no. {}!\n", .{visitor_count});
+    }
+}
+```
 
 ## TODOS
 Please see the todos in `src/main.zig`

@@ -29,7 +29,7 @@ pub fn closeTlsContext(tls_context: *tls.tls) !void {
 
 test "server & client" {
     const message = "bruh moment";
-    var params = tls_config.TlsConfigurationParams{
+    var params = TlsConfigurationParams{
         .ca = .{ .memory = @embedFile("../test/CA/root.pem") },
         .cert = .{ .memory = @embedFile("../test/CA/server.crt") },
         .key = .{ .memory = @embedFile("../test/CA/server.key") },

@@ -30,15 +30,19 @@ pub fn accept(self: *Self) !root.SslStream {
     var connection = try self.tcp_server.accept();
     errdefer connection.stream.close();
 
-    if (tls.tls_accept_socket(self.tls_context, @ptrCast([*c]?*tls.tls, &self.tls_context), connection.stream.handle) == -1)
+    // seems like we need a new tls context for each connection so that we don't close the server's
+    // context
+    var new_tls_context: ?*tls.tls = null;
+
+    if (tls.tls_accept_socket(self.tls_context, @ptrCast([*c]?*tls.tls, &new_tls_context), connection.stream.handle) == -1)
         return error.TlsAcceptSocket;
 
-    return root.SslStream.wrapServerStream(self.tls_configuration, self.tls_context, connection);
+    return root.SslStream.wrapServerStream(self.tls_configuration, new_tls_context.?, connection);
 }
 
 pub fn deinit(self: *Self) void {
     root.closeTlsContext(self.tls_context) catch |e| {
-        root.out.err("Failed to call tls_close: {}", .{e});
+        root.out.err("Failed to call tls_close: {} ({s})", .{ e, tls.tls_error(self.tls_context) });
     };
     self.tcp_server.deinit();
     self.* = undefined;
