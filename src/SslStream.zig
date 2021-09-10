@@ -1,18 +1,17 @@
 const std = @import("std");
 const root = @import("main.zig");
 const tls = root.tls;
-const TlsConfiguration = root.tls_config.TlsConfiguration;
 
 const Self = @This();
 
-tls_configuration: TlsConfiguration,
+tls_configuration: root.TlsConfiguration,
 tls_context: *tls.tls,
 tcp_stream: std.net.Stream,
 address: ?std.net.Address = null,
 
 const WrapError = error{ OutOfMemory, BadTlsConfiguration, TlsConnectSocket, TlsAcceptSocket };
 
-pub fn wrapClientStream(tls_configuration: TlsConfiguration, tcp_stream: std.net.Stream, server_name: []const u8) WrapError!Self {
+pub fn wrapClientStream(tls_configuration: root.TlsConfiguration, tcp_stream: std.net.Stream, server_name: []const u8) WrapError!Self {
     var maybe_tls_context = tls.tls_client();
     if (maybe_tls_context == null) return error.OutOfMemory;
 
@@ -30,7 +29,7 @@ pub fn wrapClientStream(tls_configuration: TlsConfiguration, tcp_stream: std.net
     };
 }
 
-pub fn wrapServerStream(tls_configuration: TlsConfiguration, tls_context: *tls.tls, connection: std.net.StreamServer.Connection) WrapError!Self {
+pub fn wrapServerStream(tls_configuration: root.TlsConfiguration, tls_context: *tls.tls, connection: std.net.StreamServer.Connection) WrapError!Self {
     return Self{
         .tls_configuration = tls_configuration,
         .tls_context = tls_context,
@@ -41,7 +40,7 @@ pub fn wrapServerStream(tls_configuration: TlsConfiguration, tls_context: *tls.t
 
 pub fn deinit(self: *Self) void {
     root.closeTlsContext(self.tls_context) catch |e| {
-        root.out.err("Failed to call tls_close: {}", .{e});
+        root.out.err("Failed to call tls_close: {} ({s})", .{ e, tls.tls_error(self.tls_context) });
     };
     tls.tls_free(self.tls_context);
     self.tcp_stream.close();

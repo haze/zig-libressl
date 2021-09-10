@@ -1,17 +1,16 @@
 const std = @import("std");
 const root = @import("main.zig");
 const tls = root.tls;
-const TlsConfiguration = root.tls_config.TlsConfiguration;
 
 const Self = @This();
 
 tcp_server: std.net.StreamServer,
-tls_configuration: TlsConfiguration,
+tls_configuration: root.TlsConfiguration,
 tls_context: *tls.tls,
 
 const WrapError = error{ OutOfMemory, BadTlsConfiguration };
 
-pub fn wrap(tls_configuration: TlsConfiguration, tcp_server: std.net.StreamServer) WrapError!Self {
+pub fn wrap(tls_configuration: root.TlsConfiguration, tcp_server: std.net.StreamServer) WrapError!Self {
     var maybe_tls_context = tls.tls_server();
     if (maybe_tls_context == null) return error.OutOfMemory;
     errdefer root.out.warn("{s}", .{tls.tls_error(maybe_tls_context.?)});

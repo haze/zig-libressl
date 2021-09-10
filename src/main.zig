@@ -5,7 +5,9 @@ pub const tls = @cImport({
     @cInclude("tls.h");
 });
 
-pub const tls_config = @import("tls_config.zig");
+const tls_config = @import("tls_config.zig");
+pub const TlsConfiguration = tls_config.TlsConfiguration;
+pub const TlsConfigurationParams = tls_config.TlsConfigurationParams;
 pub const SslStream = @import("SslStream.zig");
 pub const SslServer = @import("SslServer.zig");
 
