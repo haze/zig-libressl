@@ -11,7 +11,7 @@
 ## Project status
 Zig-LibreSSL is currently a work in progress. I've hand verified that simple message transactions
 work, along with use in a homebrewed HTTP client, but there is still much more to test! Please feel
-free to open issues for features or bugs that you wish to add or encounter.
+free to open issues for features you want, or bugs that you encounter.
 
 ## Quickstart Client
 ```zig
