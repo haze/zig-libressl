@@ -1,7 +1,24 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 // TODO(haze): check if ninja exists and use that
 // TODO(haze): see if we can take input arguments to an already built and installed libreSSL
+
+fn isProgramAvailable(builder: *std.build.Builder, program_name: []const u8) !bool {
+    const env_map = try std.process.getEnvMap(builder.allocator);
+    const path_var = env_map.get("PATH") orelse return false;
+    var path_iter = std.mem.tokenize(u8, path_var, if (builtin.os.tag == .windows) ";" else ":");
+    while (path_iter.next()) |path| {
+        var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
+        defer dir.close();
+
+        var dir_iterator = dir.iterate();
+        while (try dir_iterator.next()) |dir_item| {
+            if (std.mem.eql(u8, dir_item.name, program_name)) return true;
+        }
+    }
+    return false;
+}
 
 fn isLibreSslConfigured(library_location: []const u8) !bool {
     var libre_ssl_dir = try std.fs.cwd().openDir(library_location, .{});
@@ -31,21 +48,34 @@ fn buildLibreSsl(builder: *std.build.Builder, input_step: *std.build.LibExeObjSt
 
     var build_results_dir_path = try std.fs.path.join(builder.allocator, &[_][]const u8{ build_dir_path, "out" });
 
-    const cmake_step = std.build.RunStep.create(builder, "configure LibreSSL");
-    cmake_step.cwd = build_dir_path;
-    cmake_step.addArgs(&[_][]const u8{ "cmake", "-GNinja", libre_ssl_absolute_dir });
-    cmake_step.step.dependOn(&configure_step.step);
-
     if (!try isLibreSslConfigured(library_location)) {
         configure_step.step.dependOn(&autogen_step.step);
     }
 
+    const ninja_available = isProgramAvailable(builder, "ninja") catch false;
+
     const make_step = std.build.RunStep.create(builder, "make LibreSSL");
     make_step.cwd = build_dir_path;
     make_step.setEnvironmentVariable("DESTDIR", "out");
-    make_step.setEnvironmentVariable("CC", "zig cc");
-    make_step.addArgs(&[_][]const u8{ "ninja", "install" });
-    make_step.step.dependOn(&cmake_step.step);
+    if (ninja_available) {
+        make_step.addArgs(&[_][]const u8{ "ninja", "install" });
+    } else {
+        make_step.addArgs(&[_][]const u8{ "make", "install" });
+    }
+
+    const cmake_available = isProgramAvailable(builder, "cmake") catch false;
+
+    if (cmake_available) {
+        const cmake_step = std.build.RunStep.create(builder, "configure LibreSSL");
+        cmake_step.cwd = build_dir_path;
+        if (ninja_available) {
+            cmake_step.addArgs(&[_][]const u8{ "cmake", "-GNinja", libre_ssl_absolute_dir });
+        } else {
+            cmake_step.addArgs(&[_][]const u8{ "cmake", libre_ssl_absolute_dir });
+        }
+        cmake_step.step.dependOn(&configure_step.step);
+        make_step.step.dependOn(&cmake_step.step);
+    }
 
     // check if we even need to build anything
     _ = std.fs.cwd().openDir(build_results_dir_path, .{}) catch {
@@ -65,23 +95,62 @@ fn buildLibreSsl(builder: *std.build.Builder, input_step: *std.build.LibExeObjSt
     input_step.linkSystemLibraryName("crypto");
 }
 
+const required_programs = [_][]const u8{
+    "automake",
+    "autoconf",
+    "git",
+    "libtool",
+    "perl",
+    "make",
+};
+
+fn addIncludeDirsFromPkgConfigForLibrary(builder: *std.build.Builder, step: *std.build.LibExeObjStep, name: []const u8) !void {
+    var out_code: u8 = 0;
+    const stdout = try builder.execAllowFail(&[_][]const u8{ "pkg-config", "--cflags", name }, &out_code, .Ignore);
+    var c_flag_iter = std.mem.tokenize(u8, stdout, " ");
+    while (c_flag_iter.next()) |c_flag| {
+        if (std.mem.startsWith(u8, c_flag, "-I")) {
+            var path = std.mem.trimRight(u8, c_flag[2..], "\t\r\n ");
+            // std.debug.print("Adding '{s}' to the include dirs", .{path});
+            step.addIncludeDir(path);
+        }
+    }
+}
+
 pub fn build(b: *std.build.Builder) void {
-    // Standard release options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
+    const use_system_libressl = b.option(bool, "use-system-libressl", "Link and build from the system installed copy of LibreSSL instead of building it from source") orelse false;
 
     const libressl_location = "libressl";
 
     var lib = b.addStaticLibrary("zig-libressl", "src/main.zig");
+    lib.linkLibC();
     lib.setBuildMode(mode);
     lib.install();
 
     var main_tests = b.addTest("src/main.zig");
     main_tests.setBuildMode(mode);
-    buildLibreSsl(b, main_tests, libressl_location) catch |e| {
-        std.debug.print("Failed to configure libreSSL build steps: {}\n", .{e});
-        return;
-    };
+    if (use_system_libressl) {
+        addIncludeDirsFromPkgConfigForLibrary(b, main_tests, "libtls") catch |why| {
+            std.debug.print("Failed to get include directory for libtls: {}", .{why});
+            return;
+        };
+        main_tests.linkSystemLibrary("tls");
+        main_tests.linkSystemLibrary("ssl");
+        main_tests.linkSystemLibrary("crypto");
+    } else {
+        inline for (required_programs) |program| {
+            const available = isProgramAvailable(b, program) catch false;
+            if (!available) {
+                std.debug.print("{s} is required to build LibreSSL\n", .{program});
+                return;
+            }
+        }
+        buildLibreSsl(b, main_tests, libressl_location) catch |e| {
+            std.debug.print("Failed to configure libreSSL build steps: {}\n", .{e});
+            return;
+        };
+    }
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&main_tests.step);

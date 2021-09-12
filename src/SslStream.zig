@@ -40,7 +40,7 @@ pub fn wrapServerStream(tls_configuration: root.TlsConfiguration, tls_context: *
 
 pub fn deinit(self: *Self) void {
     root.closeTlsContext(self.tls_context) catch |e| {
-        root.out.err("Failed to call tls_close: {} ({s})", .{ e, tls.tls_error(self.tls_context) });
+        root.out.err("Failed to call tls_close on client: {} ({s})", .{ e, tls.tls_error(self.tls_context) });
     };
     tls.tls_free(self.tls_context);
     self.tcp_stream.close();

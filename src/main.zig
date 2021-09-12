@@ -21,6 +21,7 @@ pub fn closeTlsContext(tls_context: *tls.tls) !void {
 // TODO(haze): reuse tls session file https://man.openbsd.org/tls_config_set_session_id.3
 // TODO(haze): tls noverify https://man.openbsd.org/tls_config_verify.3
 // TODO(haze): investigate tls_client/tls_server NULL return as OOM
+// TODO(haze): tls_context reporting (tls version, issuer, expiry, etc)
 
 // TODO(haze): incorporate into event loop
 // TODO(haze): better error parsing

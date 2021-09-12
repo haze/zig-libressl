@@ -41,9 +41,6 @@ pub fn accept(self: *Self) !root.SslStream {
 }
 
 pub fn deinit(self: *Self) void {
-    root.closeTlsContext(self.tls_context) catch |e| {
-        root.out.err("Failed to call tls_close: {} ({s})", .{ e, tls.tls_error(self.tls_context) });
-    };
     self.tcp_server.deinit();
     self.* = undefined;
 }
