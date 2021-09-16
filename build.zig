@@ -1,9 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// TODO(haze): check if ninja exists and use that
-// TODO(haze): see if we can take input arguments to an already built and installed libreSSL
-
 fn isProgramAvailable(builder: *std.build.Builder, program_name: []const u8) !bool {
     const env_map = try std.process.getEnvMap(builder.allocator);
     const path_var = env_map.get("PATH") orelse return false;
@@ -117,11 +114,34 @@ fn addIncludeDirsFromPkgConfigForLibrary(builder: *std.build.Builder, step: *std
     }
 }
 
+pub fn useLibreSslForStep(builder: *std.build.Builder, step: *std.build.LibExeObjStep, libressl_location: []const u8) void {
+    const use_system_libressl = builder.option(bool, "use-system-libressl", "Link and build from the system installed copy of LibreSSL instead of building it from source") orelse false;
+
+    if (use_system_libressl) {
+        addIncludeDirsFromPkgConfigForLibrary(builder, step, "libtls") catch |why| {
+            std.debug.print("Failed to get include directory for libtls: {}", .{why});
+            return;
+        };
+        step.linkSystemLibrary("tls");
+        step.linkSystemLibrary("ssl");
+        step.linkSystemLibrary("crypto");
+    } else {
+        inline for (required_programs) |program| {
+            const available = isProgramAvailable(builder, program) catch false;
+            if (!available) {
+                std.debug.print("{s} is required to build LibreSSL\n", .{program});
+                return;
+            }
+        }
+        buildLibreSsl(builder, step, libressl_location) catch |e| {
+            std.debug.print("Failed to configure libreSSL build steps: {}\n", .{e});
+            return;
+        };
+    }
+}
+
 pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
-    const use_system_libressl = b.option(bool, "use-system-libressl", "Link and build from the system installed copy of LibreSSL instead of building it from source") orelse false;
-
-    const libressl_location = "libressl";
 
     var lib = b.addStaticLibrary("zig-libressl", "src/main.zig");
     lib.linkLibC();
@@ -130,27 +150,8 @@ pub fn build(b: *std.build.Builder) void {
 
     var main_tests = b.addTest("src/main.zig");
     main_tests.setBuildMode(mode);
-    if (use_system_libressl) {
-        addIncludeDirsFromPkgConfigForLibrary(b, main_tests, "libtls") catch |why| {
-            std.debug.print("Failed to get include directory for libtls: {}", .{why});
-            return;
-        };
-        main_tests.linkSystemLibrary("tls");
-        main_tests.linkSystemLibrary("ssl");
-        main_tests.linkSystemLibrary("crypto");
-    } else {
-        inline for (required_programs) |program| {
-            const available = isProgramAvailable(b, program) catch false;
-            if (!available) {
-                std.debug.print("{s} is required to build LibreSSL\n", .{program});
-                return;
-            }
-        }
-        buildLibreSsl(b, main_tests, libressl_location) catch |e| {
-            std.debug.print("Failed to configure libreSSL build steps: {}\n", .{e});
-            return;
-        };
-    }
+
+    useLibreSslForStep(b, main_tests, "libressl");
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&main_tests.step);
