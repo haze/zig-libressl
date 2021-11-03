@@ -34,7 +34,7 @@ pub const TlsConfigurationParams = struct {
         compat,
         legacy,
         insecure,
-        custom: []const u8,
+        custom: [*:0]const u8,
 
         pub fn native(self: Ciphers) []const u8 {
             return switch (self) {
@@ -56,7 +56,7 @@ pub const TlsConfigurationParams = struct {
             return switch (self) {
                 .none => "none",
                 .auto => "auto",
-                .legacy => "lgeacy",
+                .legacy => "legacy",
             };
         }
     };
