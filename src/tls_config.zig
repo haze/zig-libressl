@@ -36,13 +36,10 @@ pub const TlsConfigurationParams = struct {
         insecure,
         custom: [*:0]const u8,
 
-        pub fn native(self: Ciphers) []const u8 {
+        pub fn native(self: Ciphers) [*:0]const u8 {
             return switch (self) {
-                .secure => "secure",
-                .compat => "compat",
-                .legacy => "legacy",
-                .insecure => "insecure",
                 .custom => |payload| payload,
+                else => @tagName(self)
             };
         }
     };
@@ -195,7 +192,7 @@ pub const TlsConfigurationParams = struct {
             if (tls.tls_config_set_alpn(config, alpn_protocols.ptr) == -1)
                 return error.BadAlpn;
 
-        if (tls.tls_config_set_ciphers(config, self.ciphers.native().ptr) == -1)
+        if (tls.tls_config_set_ciphers(config, self.ciphers.native()) == -1)
             return error.BadCiphers;
         if (tls.tls_config_set_dheparams(config, self.dhe_params.native().ptr) == -1)
             return error.BadDheParams;
