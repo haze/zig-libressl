@@ -90,6 +90,9 @@ fn buildLibreSsl(builder: *std.build.Builder, input_step: *std.build.LibExeObjSt
     input_step.linkSystemLibraryName("tls");
     input_step.linkSystemLibraryName("ssl");
     input_step.linkSystemLibraryName("crypto");
+    if (input_step.target.getOsTag() == .windows) {
+        input_step.linkSystemLibrary("bcrypt"); // libcrypto uses bcrypt.dll in windows
+    }
 }
 
 const required_programs = [_][]const u8{
@@ -118,10 +121,15 @@ pub fn useLibreSslForStep(builder: *std.build.Builder, step: *std.build.LibExeOb
     const use_system_libressl = builder.option(bool, "use-system-libressl", "Link and build from the system installed copy of LibreSSL instead of building it from source") orelse false;
 
     if (use_system_libressl) {
-        addIncludeDirsFromPkgConfigForLibrary(builder, step, "libtls") catch |why| {
-            std.debug.print("Failed to get include directory for libtls: {}", .{why});
-            return;
-        };
+        if (step.target.getOsTag() == .windows) {
+            step.linkSystemLibrary("bcrypt");
+        } else {
+            // Don't know how to resolve this in windows =( 
+            addIncludeDirsFromPkgConfigForLibrary(builder, step, "libtls") catch |why| {
+                std.debug.print("Failed to get include directory for libtls: {}", .{why});
+                return;
+            };
+        }
         step.linkSystemLibrary("tls");
         step.linkSystemLibrary("ssl");
         step.linkSystemLibrary("crypto");

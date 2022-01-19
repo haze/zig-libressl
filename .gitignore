@@ -1,0 +1,3 @@
+# Your standard zig things you don't want in the repository
+zig-cache
+zig-out

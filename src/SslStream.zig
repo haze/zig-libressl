@@ -1,6 +1,7 @@
 const std = @import("std");
 const root = @import("main.zig");
 const tls = root.tls;
+const builtin = @import("builtin");
 
 const Self = @This();
 
@@ -19,7 +20,9 @@ pub fn wrapClientStream(tls_configuration: root.TlsConfiguration, tcp_stream: st
     if (tls.tls_configure(tls_context, tls_configuration.config) == -1)
         return error.BadTlsConfiguration;
 
-    if (tls.tls_connect_socket(tls_context, tcp_stream.handle, server_name.ptr) == -1)
+    var handle = if(builtin.os.tag == .windows) @truncate(i32,@bitCast(isize, @ptrToInt(tcp_stream.handle))) else tcp_stream.handle;
+
+    if (tls.tls_connect_socket(tls_context, handle, server_name.ptr) == -1)
         return error.TlsConnectSocket;
 
     return Self{
