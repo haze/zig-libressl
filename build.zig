@@ -1,4 +1,5 @@
 const std = @import("std");
+const out = std.log.scoped(.libressl);
 const builtin = @import("builtin");
 
 fn isProgramAvailable(builder: *std.build.Builder, program_name: []const u8) !bool {
@@ -6,7 +7,7 @@ fn isProgramAvailable(builder: *std.build.Builder, program_name: []const u8) !bo
     const path_var = env_map.get("PATH") orelse return false;
     var path_iter = std.mem.tokenize(u8, path_var, if (builtin.os.tag == .windows) ";" else ":");
     while (path_iter.next()) |path| {
-        var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
+        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch continue;
         defer dir.close();
 
         var dir_iterator = dir.iterate();
@@ -19,7 +20,7 @@ fn isProgramAvailable(builder: *std.build.Builder, program_name: []const u8) !bo
 
 fn isLibreSslConfigured(library_location: []const u8) !bool {
     var libre_ssl_dir = try std.fs.cwd().openDir(library_location, .{});
-    _ = libre_ssl_dir.openFile("configure", .{ .read = false, .write = false }) catch return false;
+    _ = libre_ssl_dir.openFile("configure", .{}) catch return false;
     return true;
 }
 
@@ -108,19 +109,21 @@ fn addIncludeDirsFromPkgConfigForLibrary(builder: *std.build.Builder, step: *std
     while (c_flag_iter.next()) |c_flag| {
         if (std.mem.startsWith(u8, c_flag, "-I")) {
             var path = std.mem.trimRight(u8, c_flag[2..], "\t\r\n ");
-            // std.debug.print("Adding '{s}' to the include dirs", .{path});
             step.addIncludeDir(path);
         }
     }
 }
 
-pub fn useLibreSslForStep(builder: *std.build.Builder, step: *std.build.LibExeObjStep, libressl_location: []const u8) void {
-    const use_system_libressl = builder.option(bool, "use-system-libressl", "Link and build from the system installed copy of LibreSSL instead of building it from source") orelse false;
-
+pub fn useLibreSslForStep(
+    builder: *std.build.Builder,
+    step: *std.build.LibExeObjStep,
+    libressl_location: []const u8,
+    use_system_libressl: bool,
+) !void {
     if (use_system_libressl) {
         addIncludeDirsFromPkgConfigForLibrary(builder, step, "libtls") catch |why| {
-            std.debug.print("Failed to get include directory for libtls: {}", .{why});
-            return;
+            out.err("Failed to get include directory for libtls: {}", .{why});
+            return why;
         };
         step.linkSystemLibrary("tls");
         step.linkSystemLibrary("ssl");
@@ -129,18 +132,18 @@ pub fn useLibreSslForStep(builder: *std.build.Builder, step: *std.build.LibExeOb
         inline for (required_programs) |program| {
             const available = isProgramAvailable(builder, program) catch false;
             if (!available) {
-                std.debug.print("{s} is required to build LibreSSL\n", .{program});
-                return;
+                out.err("{s} is required to build LibreSSL\n", .{program});
+                return error.MissingRequiredProgramForBuild;
             }
         }
         buildLibreSsl(builder, step, libressl_location) catch |e| {
-            std.debug.print("Failed to configure libreSSL build steps: {}\n", .{e});
-            return;
+            out.err("Failed to configure libreSSL build steps: {}\n", .{e});
+            return e;
         };
     }
 }
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.build.Builder) !void {
     const mode = b.standardReleaseOptions();
 
     var lib = b.addStaticLibrary("zig-libressl", "src/main.zig");
@@ -148,11 +151,18 @@ pub fn build(b: *std.build.Builder) void {
     lib.setBuildMode(mode);
     lib.install();
 
-    var main_tests = b.addTest("src/main.zig");
-    main_tests.setBuildMode(mode);
+    const use_system_libressl = b.option(bool, "use-system-libressl", "Link and build from the system installed copy of LibreSSL instead of building it from source") orelse false;
 
-    useLibreSslForStep(b, main_tests, "libressl");
+    var main_tests = b.addTest("src/normal_test.zig");
+    main_tests.setBuildMode(mode);
+    try useLibreSslForStep(b, main_tests, "libressl", use_system_libressl);
+
+    var async_tests = b.addTest("src/async_test.zig");
+    async_tests.test_evented_io = true;
+    async_tests.setBuildMode(mode);
+    try useLibreSslForStep(b, async_tests, "libressl", use_system_libressl);
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&main_tests.step);
+    test_step.dependOn(&async_tests.step);
 }
