@@ -21,14 +21,6 @@ test "async server & client" {
         fn serverFn(server: *libressl.SslServer, message_to_send: []const u8) !void {
             defer server.deinit();
 
-            // comptime var current_client: usize = 0;
-            // var client_frames: [ClientCount]@Frame(@This().handleClient) = undefined;
-            //
-            // inline while (current_client < ClientCount) : (current_client += 1) {
-            //     var ssl_connection = try server.accept();
-            //     client_frames[current_client] = async @This().handleClient(&ssl_connection, message_to_send);
-            // }
-
             var current_client: usize = 0;
             var client_frames: [ClientCount]@Frame(@This().handleClient) = undefined;
 
@@ -45,7 +37,7 @@ test "async server & client" {
             stream: libressl.SslStream,
             message_to_send: []const u8,
         ) !void {
-            var writer = (&stream).writer();
+            var writer = stream.writer();
             try writer.writeAll(message_to_send);
         }
     };
@@ -61,7 +53,7 @@ test "async server & client" {
             var ssl_client = try libressl.SslStream.wrapClientStream(tls_configuration, client, "localhost");
             defer ssl_client.deinit();
 
-            var client_buf: [32]u8 = undefined;
+            var client_buf: [message.len]u8 = undefined;
             var client_reader = ssl_client.reader();
             const bytes_read = try client_reader.read(&client_buf);
             const response = client_buf[0..bytes_read];
@@ -69,8 +61,6 @@ test "async server & client" {
         }
     }.clientFn;
 
-    // var client_frames = try std.testing.allocator.alloc(@Frame(clientFn), ClientCount);
-    // defer std.testing.allocator.free(client_frames);
     var client_frames: [ClientCount]@Frame(clientFn) = undefined;
 
     var client_count: usize = 0;

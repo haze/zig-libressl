@@ -37,9 +37,9 @@ fn buildLibreSsl(builder: *std.build.Builder, input_step: *std.build.LibExeObjSt
     configure_step.cwd = library_location;
     configure_step.addArg("./configure");
 
-    libre_ssl_dir.makeDir("build") catch |e| switch (e) {
+    libre_ssl_dir.makeDir("build") catch |why| switch (why) {
         std.os.MakeDirError.PathAlreadyExists => {},
-        else => return e,
+        else => return why,
     };
 
     var build_dir_path = try std.fs.path.join(builder.allocator, &[_][]const u8{ library_location, "build" });
@@ -136,10 +136,20 @@ pub fn useLibreSslForStep(
                 return error.MissingRequiredProgramForBuild;
             }
         }
-        buildLibreSsl(builder, step, libressl_location) catch |e| {
-            out.err("Failed to configure libreSSL build steps: {}\n", .{e});
-            return e;
+        buildLibreSsl(builder, step, libressl_location) catch |why| {
+            out.err("Failed to configure libreSSL build steps: {}\n", .{why});
+            return why;
         };
+
+        // TODO(haze): see if we ever really need this
+        // if (!use_system_libressl) {
+        //     const libtls_header_path = try std.fs.path.join(builder.allocator, &[_][]const u8{ libressl_location, "build/out/usr/local/include/tls.h" });
+        //     out.warn("Adding c source file loc: {s}", .{libtls_header_path});
+        //     step.addCSourceFileSource(.{
+        //         .source = std.build.FileSource.relative(libtls_header_path),
+        //         .args = &[_][]const u8{},
+        //     });
+        // }
     }
 }
 

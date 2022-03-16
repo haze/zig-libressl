@@ -35,7 +35,6 @@ pub fn closeTlsContext(tls_context: *tls.tls, handle: std.os.socket_t) !void {
 // TODO(haze): investigate tls_client/tls_server NULL return as OOM
 // TODO(haze): tls_context reporting (tls version, issuer, expiry, etc)
 
-// TODO(haze): incorporate into event loop
 // TODO(haze): better error parsing
 // TODO(haze): tls keypair/oscp add
 // TODO(haze): debug annotations
