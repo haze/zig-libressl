@@ -91,6 +91,10 @@ fn attemptTlsFunction(
             }
             output = function(tls_context, buffer.ptr, buffer.len);
         }
+    } else {
+        while (output == tls.TLS_WANT_POLLIN or output == tls.TLS_WANT_POLLOUT) {
+            output = function(tls_context, buffer.ptr, buffer.len);
+        }
     }
     return output;
 }
