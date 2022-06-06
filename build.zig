@@ -120,11 +120,17 @@ pub fn useLibreSslForStep(
     libressl_location: []const u8,
     use_system_libressl: bool,
 ) !void {
+    var env_map = try std.process.getEnvMap(builder.allocator);
+    defer env_map.deinit();
+
+    const is_nix = env_map.get("NIX_CFLAGS_COMPILE") != null;
     if (use_system_libressl) {
-        addIncludeDirsFromPkgConfigForLibrary(builder, step, "libtls") catch |why| {
-            out.err("Failed to get include directory for libtls: {}", .{why});
-            return why;
-        };
+        if (!is_nix) {
+            addIncludeDirsFromPkgConfigForLibrary(builder, step, "libtls") catch |why| {
+                out.err("Failed to get include directory for libtls: {}", .{why});
+                return why;
+            };
+        }
         step.linkSystemLibrary("tls");
         step.linkSystemLibrary("ssl");
         step.linkSystemLibrary("crypto");
