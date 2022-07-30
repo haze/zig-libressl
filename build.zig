@@ -7,7 +7,7 @@ fn isProgramAvailable(builder: *std.build.Builder, program_name: []const u8) !bo
     const path_var = env_map.get("PATH") orelse return false;
     var path_iter = std.mem.tokenize(u8, path_var, if (builtin.os.tag == .windows) ";" else ":");
     while (path_iter.next()) |path| {
-        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch continue;
+        var dir = std.fs.cwd().openIterableDir(path, .{}) catch continue;
         defer dir.close();
 
         var dir_iterator = dir.iterate();

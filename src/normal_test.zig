@@ -4,9 +4,9 @@ const libressl = @import("main.zig");
 test "server & client" {
     const message = "bruh moment";
     var params = libressl.TlsConfigurationParams{
-        .ca = .{ .memory = @embedFile("../test/CA/root.pem") },
-        .cert = .{ .memory = @embedFile("../test/CA/server.crt") },
-        .key = .{ .memory = @embedFile("../test/CA/server.key") },
+        .ca = .{ .memory = @embedFile("test_files/root.pem") },
+        .cert = .{ .memory = @embedFile("test_files/server.crt") },
+        .key = .{ .memory = @embedFile("test_files/server.key") },
     };
     const conf = try params.build();
 
